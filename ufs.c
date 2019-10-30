@@ -33,13 +33,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <libxml/parser.h>
-#include <libxml/tree.h>
-#include <libxml/xpath.h>
-
 #include "ufs.h"
 #include "qdl.h"
 #include "patch.h"
+#include "util.h"
 
 struct ufs_common *ufs_common_p;
 struct ufs_epilogue *ufs_epilogue_p;
@@ -307,4 +304,17 @@ int ufs_provisioning_execute(struct qdl_device *qdl,
 			return ret;
 	}
 	return apply_ufs_epilogue(qdl, ufs_epilogue_p, true);
+}
+
+void ufs_unload(void)
+{
+	struct ufs_body *body;
+	struct ufs_body *next;
+
+	for (body = ufs_body_p; body; body = next) {
+		next = body->next;
+
+		xmlFree(body->desc);
+		free(body);
+	}
 }

@@ -32,12 +32,11 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 
 #include "program.h"
 #include "qdl.h"
-		
+#include "util.h"
+
 static struct program *programes;
 static struct program *programes_last;
 
@@ -48,6 +47,7 @@ int program_load(const char *program_file)
 	xmlNode *root;
 	xmlDoc *doc;
 	int errors;
+	xmlChar *sparse_val;
 
 	doc = xmlReadFile(program_file, NULL, 0);
 	if (!doc) {
@@ -83,6 +83,15 @@ int program_load(const char *program_file)
 			continue;
 		}
 
+		sparse_val = attr_as_string(node, "sparse", &errors);
+		if (!errors) {
+			if (!xmlStrcmp(sparse_val, (const xmlChar *)"true"))
+				program->is_sparse = true;
+			else
+				program->is_sparse = false;
+			xmlFree(sparse_val);
+		}
+
 		if (programes) {
 			programes_last->next = program;
 			programes_last = program;
@@ -101,7 +110,7 @@ int program_execute(struct qdl_device *qdl, int (*apply)(struct qdl_device *qdl,
 		    const char *incdir)
 {
 	struct program *program;
-	const char *filename;
+	char *filename;
 	char tmp[PATH_MAX];
 	int ret;
 	int fd;
@@ -110,7 +119,7 @@ int program_execute(struct qdl_device *qdl, int (*apply)(struct qdl_device *qdl,
 		if (!program->filename)
 			continue;
 
-		filename = program->filename;
+		filename = (char *)program->filename;
 		if (incdir) {
 			snprintf(tmp, PATH_MAX, "%s/%s", incdir, filename);
 			if (access(tmp, F_OK) != -1)
@@ -146,11 +155,11 @@ int program_execute(struct qdl_device *qdl, int (*apply)(struct qdl_device *qdl,
 int program_find_bootable_partition(void)
 {
 	struct program *program;
-	const char *label;
+	char *label;
 	int part = -ENOENT;
 
 	for (program = programes; program; program = program->next) {
-		label = program->label;
+		label = (char *)program->label;
 
 		if (!strcmp(label, "xbl") || !strcmp(label, "xbl_a") ||
 		    !strcmp(label, "sbl1")) {
@@ -162,4 +171,19 @@ int program_find_bootable_partition(void)
 	}
 
 	return part;
+}
+
+void program_unload(void)
+{
+	struct program *program;
+	struct program *next;
+
+	for (program = programes; program; program = next) {
+		next = program->next;
+
+		xmlFree(program->filename);
+		xmlFree(program->start_sector);
+		xmlFree(program->label);
+		free(program);
+	}
 }

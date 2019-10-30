@@ -30,12 +30,11 @@
  */
 #include <errno.h>
 #include <string.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 
 #include "patch.h"
 #include "qdl.h"
-		
+#include "util.h"
+
 static struct patch *patches;
 static struct patch *patches_last;
 
@@ -102,7 +101,7 @@ int patch_execute(struct qdl_device *qdl, int (*apply)(struct qdl_device *qdl, s
 	int ret;
 
 	for (patch = patches; patch; patch = patch->next) {
-		if (strcmp(patch->filename, "DISK"))
+		if (xmlStrcmp(patch->filename, (const xmlChar *)"DISK"))
 			continue;
 
 		ret = apply(qdl, patch);
@@ -111,4 +110,20 @@ int patch_execute(struct qdl_device *qdl, int (*apply)(struct qdl_device *qdl, s
 	}
 
 	return 0;
+}
+
+void patch_unload(void)
+{
+	struct patch *patch;
+	struct patch *next;
+
+	for (patch = patches; patch; patch = next) {
+		next = patch->next;
+
+		xmlFree(patch->filename);
+		xmlFree(patch->start_sector);
+		xmlFree(patch->value);
+		xmlFree(patch->what);
+		free(patch);
+	}
 }
